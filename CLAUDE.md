@@ -1,1 +1,0 @@
-C:/Users/s0970/Desktop/browser-automation/AGENTS.md
