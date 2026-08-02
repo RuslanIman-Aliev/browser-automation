@@ -1,6 +1,7 @@
 "use client"
 
 import { PlusIcon, WorkflowIcon } from "lucide-react"
+import { useTransition } from "react"
 
 import {
   Popover,
@@ -14,20 +15,22 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { generateSlug } from "@/features/workflows/lib/generate-slug"
+import type { Workflow } from "@/lib/db/schema"
 
-const workflows = [
-  "Hiring Signals",
-  "Vendor Comparison",
-  "Account Research Brief",
-  "Stock Market Brief",
-  "Hacker News Digest",
-  "Daily AI News Briefing",
-  "Roadtrip Planner",
-  "Solve Today's Wordle",
-]
-
-export function WorkflowNav() {
+export function WorkflowNav({
+  workflows,
+  createWorkflowAction,
+}: {
+  workflows: Workflow[]
+  createWorkflowAction: (name: string) => Promise<void>
+}) {
   const { state } = useSidebar()
+  const [isPending, startTransition] = useTransition()
+
+  const handleCreate = () => {
+    startTransition(() => createWorkflowAction(generateSlug()))
+  }
 
   if (state === "collapsed") {
     return (
@@ -43,7 +46,7 @@ export function WorkflowNav() {
             <PopoverContent side="right" align="start">
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton>
+                  <SidebarMenuButton onClick={handleCreate} disabled={isPending}>
                     <PlusIcon />
                     <span>New workflow</span>
                   </SidebarMenuButton>
@@ -52,9 +55,9 @@ export function WorkflowNav() {
               <SidebarSeparator />
               <SidebarMenu>
                 {workflows.map((workflow) => (
-                  <SidebarMenuItem key={workflow}>
+                  <SidebarMenuItem key={workflow.id}>
                     <SidebarMenuButton>
-                      <span>{workflow}</span>
+                      <span>{workflow.name}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
@@ -69,9 +72,9 @@ export function WorkflowNav() {
   return (
     <SidebarMenu>
       {workflows.map((workflow) => (
-        <SidebarMenuItem key={workflow}>
+        <SidebarMenuItem key={workflow.id}>
           <SidebarMenuButton>
-            <span>{workflow}</span>
+            <span>{workflow.name}</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
       ))}
