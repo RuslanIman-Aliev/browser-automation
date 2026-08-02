@@ -1,7 +1,12 @@
-// Single entry point for the Drizzle schema — `drizzle.config.ts` reads only
-// this file, so any table defined under `features/*` must be re-exported here
-// to be picked up by `db:generate`.
-//
-//   export * from "@/features/workflows/schema"
+import { jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core"
 
-export {}
+export const workflows = pgTable("workflows", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: text("org_id").notNull(),
+  name: text("name").notNull(),
+  graph: jsonb("graph"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+})
+
+export type Workflow = typeof workflows.$inferSelect
