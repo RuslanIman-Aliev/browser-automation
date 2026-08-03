@@ -6,38 +6,40 @@ import {
   ConnectionLineType,
   Controls,
   MiniMap,
+  NodeTypes,
   ReactFlow,
   useEdgesState,
   useNodesState,
   type ColorMode,
   type Connection,
-  type Edge,
-  type Node,
+  type Edge
 } from "@xyflow/react"
 import { useTheme } from "next-themes"
 import { useCallback, useSyncExternalStore, type CSSProperties } from "react"
 
 import "@xyflow/react/dist/style.css"
+import { StepNodeType } from "../nodes/node-registry"
+import { StepNode } from "./step-node"
 
-const initialNodes: Node[] = [
+const nodeTypes: NodeTypes = {
+  step: StepNode,
+}
+
+const initialNodes: StepNodeType[] = [
   {
-    id: "1",
+    id:"start",
+    type: "step",
     position: { x: 0, y: 0 },
-    data: { label: "Start" },
-    type: "input",
-  },
-  { id: "2", position: { x: 0, y: 120 }, data: { label: "Step" } },
-  {
-    id: "3",
-    position: { x: 0, y: 240 },
-    data: { label: "End" },
-    type: "output",
+    data: {
+      type: "start",
+      kind: "trigger",
+      title: "Start",
+      values: {},
+    },
   },
 ]
-
 const initialEdges: Edge[] = [
-  { id: "e1-2", source: "1", target: "2" },
-  { id: "e2-3", source: "2", target: "3" },
+  { id: "start-open-url", source: "start", target: "open-url" },
 ]
 
 const subscribeToNothing = () => () => {}
@@ -70,6 +72,7 @@ export function Canvas() {
   return (
     <div className="size-full">
       <ReactFlow
+        nodeTypes={nodeTypes}
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
