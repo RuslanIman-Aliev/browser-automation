@@ -1,5 +1,5 @@
 import { WorkflowShell } from "@/features/workflows/components/workflow-shell"
-
+import { Room } from "@/features/workflows/components/room"
 export default async function WorkflowPage({
   params,
 }: {
@@ -7,5 +7,9 @@ export default async function WorkflowPage({
 }) {
   const { id } = await params
 
-  return <WorkflowShell workflowId={id} />
+  return (
+    <Room roomId={id}>
+      <WorkflowShell workflowId={id} />
+    </Room>
+  )
 }
