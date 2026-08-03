@@ -1,9 +1,9 @@
 "use client"
 
 import { Cursors, useLiveblocksFlow } from "@liveblocks/react-flow"
-import "@liveblocks/react-flow/style.css"
+import "@liveblocks/react-flow/styles.css"
 import { AvatarStack } from "@liveblocks/react-ui"
-import "@liveblocks/react-ui/style.css"
+import "@liveblocks/react-ui/styles.css"
 import {
   Background,
   ConnectionLineType,
