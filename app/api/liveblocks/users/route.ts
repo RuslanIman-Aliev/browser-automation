@@ -1,7 +1,7 @@
 import { auth, clerkClient } from "@clerk/nextjs/server"
 
-// Clerk caps `getUserList` at 500 per request — chunk well below that so a
-// large `resolveUsers` batch still resolves in one round trip per chunk.
+// Clerk's membership `userId` filter accepts at most 100 IDs (and `getUserList`
+// caps at 500), so a large `resolveUsers` batch is split into chunks of 100.
 const CHUNK_SIZE = 100
 
 type UserInfo = Liveblocks["UserMeta"]["info"]
@@ -49,15 +49,31 @@ export async function POST(request: Request) {
   const client = await clerkClient()
 
   const responses = await Promise.all(
-    chunks.map((chunk) =>
-      client.users.getUserList({ userId: chunk, limit: chunk.length })
-    )
+    chunks.map(async (chunk) => {
+      const [users, memberships] = await Promise.all([
+        client.users.getUserList({ userId: chunk, limit: chunk.length }),
+        // Only the caller's org is visible — never leak users outside it
+        client.organizations.getOrganizationMembershipList({
+          organizationId: orgId,
+          userId: chunk,
+          limit: chunk.length,
+        }),
+      ])
+
+      const memberIds = new Set(
+        memberships.data
+          .map((membership) => membership.publicUserData?.userId)
+          .filter((id) => id !== undefined)
+      )
+
+      return users.data.filter((user) => memberIds.has(user.id))
+    })
   )
 
   const usersById = new Map<string, UserInfo>()
 
-  for (const { data } of responses) {
-    for (const user of data) {
+  for (const members of responses) {
+    for (const user of members) {
       usersById.set(user.id, {
         name:
           user.fullName ??
@@ -69,7 +85,7 @@ export async function POST(request: Request) {
     }
   }
 
-  // Same order as the request, `null` for IDs Clerk doesn't know
+  // Same order as the request, `null` for unknown and non-member IDs
   const users = (userIds as string[]).map((id) => usersById.get(id) ?? null)
 
   return Response.json(users)
