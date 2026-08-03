@@ -6,6 +6,7 @@ import {
   RoomProvider,
   ClientSideSuspense,
 } from "@liveblocks/react/suspense"
+import { Spinner } from "@/components/ui/spinner"
 
 export function Room({
   children,
@@ -17,10 +18,29 @@ export function Room({
   return (
     <LiveblocksProvider
       throttle={16}
-      publicApiKey={process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY!}
+      authEndpoint="/api/liveblocks/auth"
+      resolveUsers={async ({ userIds }) => {
+        try {
+          const response = await fetch("/api/liveblocks/users", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userIds }),
+          })
+
+          if (!response.ok) {
+            return undefined
+          }
+
+          return await response.json()
+        } catch {
+          return undefined
+        }
+      }}
     >
       <RoomProvider id={roomId}>
-        <ClientSideSuspense fallback={<div>Loading…</div>}>
+        <ClientSideSuspense fallback={<div>
+          <Spinner className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status"/>
+        </div>}>
           {children}
         </ClientSideSuspense>
       </RoomProvider>

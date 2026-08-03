@@ -1,22 +1,22 @@
 "use client"
 
-import { useLiveblocksFlow, Cursors } from "@liveblocks/react-flow"
+import { Cursors, useLiveblocksFlow } from "@liveblocks/react-flow"
+import "@liveblocks/react-flow/style.css"
+import { AvatarStack } from "@liveblocks/react-ui"
+import "@liveblocks/react-ui/style.css"
 import {
   Background,
   ConnectionLineType,
   Controls,
-  MiniMap,
   NodeTypes,
+  Panel,
   ReactFlow,
   type ColorMode,
-  type Edge
+  type Edge,
 } from "@xyflow/react"
+import "@xyflow/react/dist/style.css"
 import { useTheme } from "next-themes"
 import { useSyncExternalStore, type CSSProperties } from "react"
-
-import "@xyflow/react/dist/style.css"
-import "@liveblocks/react-ui/style.css"
-import "@liveblocks/react-flow/style.css"
 import { StepNodeType } from "../nodes/node-registry"
 import { StepNode } from "./step-node"
 
@@ -26,7 +26,7 @@ const nodeTypes: NodeTypes = {
 
 const initialNodes: StepNodeType[] = [
   {
-    id:"start",
+    id: "start",
     type: "step",
     position: { x: 0, y: 0 },
     data: {
@@ -79,7 +79,7 @@ export function Canvas() {
         onDelete={onDelete}
         colorMode={mounted ? (resolvedTheme as ColorMode) : "light"}
         connectionLineType={ConnectionLineType.SmoothStep}
-        connectionLineStyle={{ stroke: "var(--border)"}}
+        connectionLineStyle={{ stroke: "var(--border)" }}
         fitView
         defaultEdgeOptions={{
           style: { stroke: "var(--border)" },
@@ -97,7 +97,9 @@ export function Canvas() {
         <Background />
         <Controls />
         <Cursors />
-        {/* <MiniMap /> */}
+        <Panel position="top-right">
+          <AvatarStack />
+        </Panel>
       </ReactFlow>
     </div>
   )
