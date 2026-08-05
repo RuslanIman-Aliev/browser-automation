@@ -1,5 +1,13 @@
 import type { Node } from "@xyflow/react"
-import { Globe, MousePointerClick, type LucideIcon } from "lucide-react"
+import {
+  Bot,
+  Eye,
+  Globe,
+  MousePointerClick,
+  Pointer,
+  ScanText,
+  type LucideIcon,
+} from "lucide-react"
 
 export type StepNodeKind = "trigger" | "action"
 
@@ -45,9 +53,101 @@ export const nodeRegistry = {
     label: "Open URL",
     icon: Globe,
     accent: "bg-emerald-500 text-white",
-    fields: [{ key: "url", label: "URL", placeholder: "https://youtube.com", required: true },
+    fields: [
+      {
+        key: "url",
+        label: "URL",
+        placeholder: "https://youtube.com",
+        required: true,
+      },
     ],
-    outputs: [{ path: "url", label: "URL" }, { path: "title", label: "Title" }],
+    outputs: [
+      { path: "url", label: "URL" },
+      { path: "title", label: "Title" },
+    ],
+  },
+  act: {
+    type: "act",
+    kind: "action",
+    label: "Act",
+    icon: Pointer,
+    accent: "bg-violet-500 text-white",
+    fields: [
+      {
+        key: "instruction",
+        label: "Instruction",
+        placeholder: "Click the sign in button",
+        multiline: true,
+        required: true,
+      },
+    ],
+    outputs: [
+      { path: "success", label: "Success" },
+      { path: "message", label: "Message" },
+      { path: "url", label: "URL" },
+    ],
+  },
+  extract: {
+    type: "extract",
+    kind: "action",
+    label: "Extract",
+    icon: ScanText,
+    accent: "bg-amber-500 text-white",
+    fields: [
+      {
+        key: "instruction",
+        label: "Instruction",
+        placeholder: "The price and title of the listing",
+        multiline: true,
+        required: true,
+      },
+    ],
+    outputs: [{ path: "extraction", label: "Extraction" }],
+  },
+  observe: {
+    type: "observe",
+    kind: "action",
+    label: "Observe",
+    icon: Eye,
+    accent: "bg-sky-500 text-white",
+    fields: [
+      {
+        key: "instruction",
+        label: "Instruction",
+        placeholder: "The buttons in the navigation bar",
+        multiline: true,
+        required: true,
+      },
+    ],
+    // How many elements match isn't known until the run, so the registry can
+    // only offer the whole list plus the first match's parts.
+    outputs: [
+      { path: "matches", label: "Matches" },
+      { path: "matches[0].selector", label: "First match · Selector" },
+      { path: "matches[0].description", label: "First match · Description" },
+    ],
+  },
+  agent: {
+    type: "agent",
+    kind: "action",
+    label: "Agent",
+    icon: Bot,
+    accent: "bg-fuchsia-500 text-white",
+    fields: [
+      {
+        key: "instruction",
+        label: "Instruction",
+        placeholder:
+          "Search for the stock price of NVDA and note the day's change",
+        multiline: true,
+        required: true,
+      },
+    ],
+    outputs: [
+      { path: "success", label: "Success" },
+      { path: "message", label: "Message" },
+      { path: "completed", label: "Completed" },
+    ],
   },
 } satisfies Record<string, NodeDefinition>
 
