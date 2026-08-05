@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useRef, useState, useTransition } from "react"
 import { useReactFlow, useStore } from "@xyflow/react"
 import { MoreHorizontal, Play, Trash2 } from "lucide-react"
 import { toast } from "sonner"
@@ -35,6 +35,10 @@ import {
   type StepNodeType,
 } from "@/features/workflows/nodes/node-registry"
 import { validateGraph } from "../lib/validate-graph"
+import {
+  useUpstreamConnections,
+  type UpstreamConnection,
+} from "../hooks/use-upstream-connections"
 
 // This file builds up to the RightSidebar component exported at the bottom: a
 // header with workflow actions (delete, run), then two tabs — a Toolbar for
@@ -46,7 +50,15 @@ import { validateGraph } from "../lib/validate-graph"
 // ---------------------------------------------------------------------------
 
 // The accent-colored icon chip, mirroring the node on the canvas.
-function NodeIcon({ type, className }: { type: NodeType; className?: string }) {
+function NodeIcon({
+  type,
+  className,
+  iconClassName,
+}: {
+  type: NodeType
+  className?: string
+  iconClassName?: string
+}) {
   const def = nodeRegistry[type]
   const Icon = def.icon
   return (
@@ -57,7 +69,7 @@ function NodeIcon({ type, className }: { type: NodeType; className?: string }) {
         className
       )}
     >
-      <Icon className="size-3.5" />
+      <Icon className={cn("size-3.5", iconClassName)} />
     </span>
   )
 }
@@ -87,23 +99,36 @@ function Section({
 // Editor tab — edits the fields of the selected node.
 // ---------------------------------------------------------------------------
 
+// Either kind of control a field renders as. Both carry a caret, which is what
+// the Connections chips insert at.
+type FieldElement = HTMLInputElement | HTMLTextAreaElement
+
 // A single editor field for a node property: a text area when the field opts
 // into multi-line, a single-line input otherwise.
 function Field({
   field,
   value,
   onChange,
+  onFocus,
+  register,
 }: {
   field: NodeField
   value: string
   onChange: (value: string) => void
+  onFocus: () => void
+  // Hands the rendered control to the Inspector, which needs the live element
+  // to read its caret. Named rather than passed as `ref` so it types the same
+  // for the input and the text area.
+  register: React.RefCallback<FieldElement>
 }) {
   if (field.multiline) {
     return (
       <Textarea
         id={field.key}
+        ref={register}
         value={value}
         placeholder={field.placeholder}
+        onFocus={onFocus}
         onChange={(e) => onChange(e.target.value)}
       />
     )
@@ -112,15 +137,70 @@ function Field({
   return (
     <Input
       id={field.key}
+      ref={register}
       value={value}
       placeholder={field.placeholder}
+      onFocus={onFocus}
       onChange={(e) => onChange(e.target.value)}
     />
   )
 }
 
+// Every output reachable from upstream of the selected node, one chip each.
+// Clicking a chip drops its {{ }} token into a field.
+function Connections({
+  connections,
+  onInsert,
+}: {
+  connections: UpstreamConnection[]
+  onInsert: (token: string) => void
+}) {
+  return (
+    <div className="flex flex-col gap-1.5 border-t border-border p-3">
+      <span className="text-xs font-medium text-muted-foreground">
+        Connections
+      </span>
+      <div className="flex flex-wrap gap-1">
+        {connections.map((connection) => (
+          <Button
+            key={connection.token}
+            variant="outline"
+            size="xs"
+            className="max-w-full"
+            title={connection.token}
+            onClick={() => onInsert(connection.token)}
+          >
+            <NodeIcon
+              type={connection.nodeType}
+              className="size-4 rounded-sm"
+              iconClassName="size-3"
+            />
+            <span className="truncate">{connection.label}</span>
+          </Button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // The Editor tab: one input per field on the selected node, or an empty state.
 function Inspector({ node }: { node: StepNodeType | undefined }) {
+  const { updateNodeData } = useReactFlow<StepNodeType>()
+  const connections = useUpstreamConnections(node)
+
+  // The field a chip inserts into: the one focused most recently, or the node's
+  // first field until one has been touched.
+  const [activeKey, setActiveKey] = useState<string>()
+  // The live controls, keyed by field, so an insert can land at the caret.
+  const elements = useRef(new Map<string, FieldElement>())
+
+  // Selecting a different node means a different set of fields.
+  const [prevNodeId, setPrevNodeId] = useState(node?.id)
+  if (node?.id !== prevNodeId) {
+    setPrevNodeId(node?.id)
+    setActiveKey(undefined)
+  }
+
   if (!node) {
     return (
       <Section title="Editor">
@@ -131,6 +211,33 @@ function Inspector({ node }: { node: StepNodeType | undefined }) {
 
   const { type, title, values } = node.data
   const def: NodeDefinition = nodeRegistry[type]
+
+  const setValue = (key: string, value: string) =>
+    updateNodeData(node.id, { values: { ...values, [key]: value } })
+
+  const insert = (token: string) => {
+    const key = activeKey ?? def.fields[0]?.key
+    if (!key) return
+
+    const element = elements.current.get(key)
+    const value = values[key] ?? ""
+    // Only trust the caret on a field the user actually focused — an untouched
+    // control reports a caret at 0, which would insert in front of its value.
+    const focused = activeKey === key ? element : undefined
+    const start = focused?.selectionStart ?? value.length
+    const end = focused?.selectionEnd ?? value.length
+
+    setValue(key, value.slice(0, start) + token + value.slice(end))
+    setActiveKey(key)
+
+    // The click moved focus to the chip. Once the new value has rendered, hand
+    // focus back with the caret sitting just past what we inserted.
+    const caret = start + token.length
+    requestAnimationFrame(() => {
+      element?.focus()
+      element?.setSelectionRange(caret, caret)
+    })
+  }
 
   return (
     <Section title={title} icon={<NodeIcon type={type} />}>
@@ -147,15 +254,20 @@ function Inspector({ node }: { node: StepNodeType | undefined }) {
               <Field
                 field={field}
                 value={values[field.key] ?? ""}
-                onChange={(value) => {
-                  // TODO: save the edit back onto the selected node.
-                  void value
+                onChange={(value) => setValue(field.key, value)}
+                onFocus={() => setActiveKey(field.key)}
+                register={(element) => {
+                  if (element) elements.current.set(field.key, element)
+                  else elements.current.delete(field.key)
                 }}
               />
             </div>
           ))
         )}
       </div>
+      {connections.length > 0 && (
+        <Connections connections={connections} onInsert={insert} />
+      )}
     </Section>
   )
 }
