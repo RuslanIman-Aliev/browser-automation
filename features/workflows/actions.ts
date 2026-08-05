@@ -74,7 +74,7 @@ export async function runWorkflowAction({
       orgId,
     },
     {
-      tags: [`workflow-${workflowId}`],
+      tags: [`workflow:${workflowId}`],
     }
   )
 

@@ -1,7 +1,9 @@
 import { WorkflowShell } from "@/features/workflows/components/workflow-shell"
 import { Room } from "@/features/workflows/components/room"
+import { WorkflowRunsProvider } from "@/features/workflows/components/workflow-runs-provider"
 
 import { auth } from "@clerk/nextjs/server"
+import { auth as triggerAuth } from "@trigger.dev/sdk"
 import { LiveblocksError } from "@liveblocks/node"
 import { ReactFlowProvider } from "@xyflow/react"
 import { notFound } from "next/navigation"
@@ -44,12 +46,28 @@ export default async function WorkflowPage({
     throw error
   }
 
+  // Read-only and scoped to this one workflow's runs, so it's safe to hand to
+  // the browser. Runs are tagged `workflow:<id>` when triggered.
+  const publicAccessToken = await triggerAuth.createPublicToken({
+    scopes: {
+      read: {
+        tags: [`workflow:${id}`],
+      },
+    },
+    expirationTime: "1h",
+  })
+
   // The provider sits above both the canvas and the sidebar's palette, so they
   // share one React Flow store and the palette can add nodes to the canvas.
   return (
     <Room roomId={id}>
       <ReactFlowProvider>
-        <WorkflowShell workflowId={id} />
+        <WorkflowRunsProvider
+          workflowId={id}
+          publicAccessToken={publicAccessToken}
+        >
+          <WorkflowShell workflowId={id} />
+        </WorkflowRunsProvider>
       </ReactFlowProvider>
     </Room>
   )
