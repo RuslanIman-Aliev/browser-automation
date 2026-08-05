@@ -3,6 +3,7 @@ import { getWorkflow } from "../data"
 import toposort from "toposort"
 import { Stagehand } from "@browserbasehq/stagehand"
 import { nodeExecutors } from "../nodes/node-executors"
+import { interpolate, type NodeOutputs } from "../lib/interpolate"
 
 export const runWorkflowTask = task({
   id: "run-workflow",
@@ -42,12 +43,26 @@ export const runWorkflowTask = task({
       return stagehand
     }
 
+    // Each node's result, keyed by its id, so later nodes can reference it
+    // through {{ nodeId.path }} placeholders in their field values. The
+    // topological order guarantees a referenced node has already run.
+    const outputs: NodeOutputs = {}
+
     for (const nodeId of order) {
       const node = byId.get(nodeId)!
       logger.log(`Running node ${nodeId} of kind ${node?.data.kind}`)
 
       const executor = nodeExecutors[node.data.type]
-      if (executor) await executor({ values: node.data.values, getStagehand })
+      if (!executor) continue
+
+      const values = Object.fromEntries(
+        Object.entries(node.data.values).map(([key, value]) => [
+          key,
+          interpolate(value, outputs),
+        ])
+      )
+
+      outputs[nodeId] = await executor({ values, getStagehand })
     }
   },
 })
