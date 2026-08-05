@@ -9,6 +9,18 @@ Never write React Flow code from training data — the API drifts between versio
 
 The package is `@xyflow/react` (React Flow v12) — not the older `reactflow` package. `@xyflow/react/dist/style.css` must be imported wherever a flow renders.
 
+# Adding a workflow node
+
+Three edits, all under `features/workflows/nodes/`:
+1. the impl file (e.g. `open-url.ts`) — the node's executor logic,
+2. register it in `node-executors.ts` — the `satisfies` contract makes a missing
+   executor a compile error for action nodes,
+3. add its manifest entry in `node-registry.ts` — kind, label, icon, accent, its
+   input `fields`, and the `outputs` downstream nodes can reference.
+
+The run task and the canvas step node are registry-driven — never touch them to add
+a node.
+
 # Stagehand Project
 
 This is a project that uses Stagehand V3, a browser automation framework with AI-powered `act`, `extract`, `observe`, and `agent` methods.
