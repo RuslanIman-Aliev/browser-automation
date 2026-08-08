@@ -5,16 +5,32 @@ import prettyMs from "pretty-ms"
 import { cn } from "@/lib/utils"
 
 import type { RunStep } from "../tasks/run-workflow"
-import { NodeIcon } from "./node-icon"
+import { NodeIcon, ReplayIcon } from "./node-icon"
 import {
   useWorkflowRuns,
   type WorkflowRun,
   type WorkflowRunStatus,
 } from "./workflow-runs-provider"
 
-// Which step is selected. A node id only identifies a step within its own run,
-// so the run has to come along with it.
-export type StepSelection = { runId: string; nodeId: string }
+// What the console has selected — one row of the run list, of either kind.
+// A step needs its run to identify it, since a node id is only unique within
+// one run; a replay stands for the whole run, so the run is all it is.
+export type ConsoleSelection =
+  | { kind: "step"; runId: string; nodeId: string }
+  | { kind: "replay"; runId: string }
+
+// A selection's identity as a single string, so comparing two of them doesn't
+// mean branching on the kind at every call site.
+export const selectionKey = (selection: ConsoleSelection) =>
+  selection.kind === "step"
+    ? `step:${selection.runId}:${selection.nodeId}`
+    : `replay:${selection.runId}`
+
+// A run has a recording to offer once it carries a session id and has stopped
+// running. The id only arrives on the run's output, so in practice it implies
+// the run finished — but a replay is worth offering only for a session that
+// has closed, so the run's state is what's actually being asked about here.
+const hasReplay = (run: WorkflowRun) => Boolean(run.sessionId) && !run.isLive
 
 const runStatusStyles: Record<WorkflowRunStatus, string> = {
   queued: "text-muted-foreground",
@@ -101,18 +117,46 @@ function StepRow({
   )
 }
 
+// A run's browser recording. Selects like a step row and sits among them, but
+// it stands for the run as a whole rather than any one step.
+function ReplayRow({
+  isSelected,
+  onSelect,
+}: {
+  isSelected: boolean
+  onSelect: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        "flex w-full items-center gap-2.5 px-3 py-1.5 text-left hover:bg-accent/50",
+        isSelected && "bg-accent hover:bg-accent"
+      )}
+    >
+      <ReplayIcon />
+      <span className="truncate text-xs font-medium text-muted-foreground">
+        Replay
+      </span>
+    </button>
+  )
+}
+
 /**
- * Every run of this workflow, newest first, with its steps listed underneath.
- * Selection is owned by the ConsolePanel above — this only reports the clicks.
+ * Every run of this workflow, newest first, with its steps listed underneath
+ * and — once it has a recording — a replay row at the end of them. Selection is
+ * owned by the ConsolePanel above; this only reports the clicks.
  */
 export function LogsPanel({
   selected,
-  onSelectStep,
+  onSelect,
 }: {
-  selected: StepSelection | null
-  onSelectStep: (selection: StepSelection) => void
+  selected: ConsoleSelection | null
+  onSelect: (selection: ConsoleSelection) => void
 }) {
   const runs = useWorkflowRuns()
+  const selectedKey = selected && selectionKey(selected)
 
   if (runs.length === 0) {
     return (
@@ -126,24 +170,38 @@ export function LogsPanel({
     // min-w-0 so the list gives way to the inspector beside it rather than
     // pushing it off, and step titles truncate instead of stretching the row.
     <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-      {runs.map((run) => (
-        <div key={run.id}>
-          <RunHeader run={run} />
-          {run.steps.map((step) => (
-            <StepRow
-              key={step.nodeId}
-              step={step}
-              isLive={run.isLive}
-              isSelected={
-                selected?.runId === run.id && selected.nodeId === step.nodeId
-              }
-              onSelect={() =>
-                onSelectStep({ runId: run.id, nodeId: step.nodeId })
-              }
-            />
-          ))}
-        </div>
-      ))}
+      {runs.map((run) => {
+        const replay = { kind: "replay", runId: run.id } as const
+
+        return (
+          <div key={run.id}>
+            <RunHeader run={run} />
+            {run.steps.map((step) => {
+              const selection = {
+                kind: "step",
+                runId: run.id,
+                nodeId: step.nodeId,
+              } as const
+
+              return (
+                <StepRow
+                  key={step.nodeId}
+                  step={step}
+                  isLive={run.isLive}
+                  isSelected={selectedKey === selectionKey(selection)}
+                  onSelect={() => onSelect(selection)}
+                />
+              )
+            })}
+            {hasReplay(run) && (
+              <ReplayRow
+                isSelected={selectedKey === selectionKey(replay)}
+                onSelect={() => onSelect(replay)}
+              />
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

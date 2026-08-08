@@ -55,6 +55,11 @@ export const runWorkflowTask = task({
     )
 
     let stagehand: Stagehand | undefined
+    // The Browserbase session the run drove, if it opened one at all — the id
+    // its recording is fetched by later. Captured on the first init and kept,
+    // so it survives past the point Stagehand is done with it.
+    let sessionId: string | undefined
+
     const getStagehand = async () => {
       if (!stagehand) {
         stagehand = new Stagehand({
@@ -65,6 +70,7 @@ export const runWorkflowTask = task({
         })
       }
       await stagehand?.init()
+      sessionId ??= stagehand.browserbaseSessionID
       return stagehand
     }
 
@@ -144,8 +150,17 @@ export const runWorkflowTask = task({
       publishSteps()
     }
 
+    if (sessionId) {
+      logger.log(
+        `Workflow ${workflowId} ran on Browserbase session ${sessionId}`
+      )
+    }
+
     // Returned as well as published, so a successful run's finished state is
-    // guaranteed even if the last metadata write never flushed.
-    return { steps }
+    // guaranteed even if the last metadata write never flushed. The session id
+    // is only returned, never published as metadata: Browserbase's recording
+    // isn't retrievable until the session closes, so handing the id to the UI
+    // mid-run would only offer a replay that doesn't exist yet.
+    return { steps, sessionId }
   },
 })

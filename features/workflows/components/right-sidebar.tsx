@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react"
 import { useReactFlow, useStore } from "@xyflow/react"
-import { MoreHorizontal, Play, Trash2 } from "lucide-react"
+import { Lock, MoreHorizontal, Play, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -37,6 +37,7 @@ import {
   type StepNodeType,
 } from "@/features/workflows/nodes/node-registry"
 import { validateGraph } from "../lib/validate-graph"
+import { useProPlan } from "../hooks/use-pro-plan"
 import {
   useUpstreamConnections,
   type UpstreamConnection,
@@ -263,10 +264,46 @@ const sections: { kind: StepNodeKind; label: string }[] = [
 // Every node type from the registry, filtered into the groups below.
 const definitions = Object.values(nodeRegistry)
 
+// Node types only orgs on the pro plan can add — the agent is by far the most
+// expensive to run. Everything else stays free, so a workflow is still fully
+// buildable without a subscription.
+const premiumTypes = new Set<NodeType>(["agent"])
+
+// One row in the Toolbar. A premium node the org isn't entitled to renders
+// locked, and its click routes to pricing instead of adding anything.
+function PaletteButton({
+  def,
+  locked,
+  pending,
+  onSelect,
+}: {
+  def: NodeDefinition
+  locked: boolean
+  pending: boolean
+  onSelect: () => void
+}) {
+  return (
+    <Button
+      variant="ghost"
+      disabled={pending}
+      onClick={onSelect}
+      title={locked ? `${def.label} is a pro feature` : undefined}
+      className="justify-start gap-2.5 px-1.5 text-xs"
+    >
+      <NodeIcon type={def.type as NodeType} />
+      <span className={locked ? "text-muted-foreground" : undefined}>
+        {def.label}
+      </span>
+      {locked && <Lock className="ml-auto size-3 text-muted-foreground" />}
+    </Button>
+  )
+}
+
 // The Toolbar tab: a button per node type that adds it to the canvas.
 function Palette() {
   const { getNodes, addNodes, screenToFlowPosition } =
     useReactFlow<StepNodeType>()
+  const { isPro, isLoaded, upgrade } = useProPlan()
   // The pane lives in the canvas, so its on-screen rect is the only way to know
   // where the middle of the current view is from over here in the sidebar.
   const pane = useStore((state) => state.domNode)
@@ -330,17 +367,27 @@ function Palette() {
             <AccordionContent className="flex flex-col gap-0.5">
               {definitions
                 .filter((def) => def.kind === section.kind)
-                .map((def) => (
-                  <Button
-                    key={def.type}
-                    variant="ghost"
-                    onClick={() => add(def.type as NodeType)}
-                    className="justify-start gap-2.5 px-1.5 text-xs"
-                  >
-                    <NodeIcon type={def.type as NodeType} />
-                    {def.label}
-                  </Button>
-                ))}
+                .map((def) => {
+                  const premium = premiumTypes.has(def.type as NodeType)
+                  // Until Clerk hydrates the plan is simply unknown, so a
+                  // premium row holds still rather than flashing a lock at
+                  // subscribers or letting a non-pro org slip one onto the
+                  // canvas in the gap.
+                  const pending = premium && !isLoaded
+                  const locked = premium && isLoaded && !isPro
+
+                  return (
+                    <PaletteButton
+                      key={def.type}
+                      def={def}
+                      locked={locked}
+                      pending={pending}
+                      onSelect={
+                        locked ? upgrade : () => add(def.type as NodeType)
+                      }
+                    />
+                  )
+                })}
             </AccordionContent>
           </AccordionItem>
         ))}

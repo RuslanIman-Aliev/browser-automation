@@ -1,4 +1,5 @@
 <!-- BEGIN:nextjs-agent-rules -->
+
 # This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
@@ -14,9 +15,22 @@ Never write React Flow code from training data — the API drifts between versio
 
 The package is `@xyflow/react` (React Flow v12) — not the older `reactflow` package. `@xyflow/react/dist/style.css` must be imported wherever a flow renders.
 
+## Browserbase observability
+
+Session recordings, replays, live view, and logs come from the core Browserbase SDK
+(`@browserbasehq/sdk`) — not Stagehand. Before building any observability feature, consult
+Browserbase's observability docs:
+https://docs.browserbase.com/platform/browser/observability
+
+Session replay specifically — retrieving a session's recording as an HLS playlist — is
+documented here:
+https://docs.browserbase.com/platform/browser/observability/session-replay
+The retrieval needs the secret API key, so it must be proxied server-side.
+
 # Adding a workflow node
 
 Three edits, all under `features/workflows/nodes/`:
+
 1. the impl file (e.g. `open-url.ts`) — the node's executor logic,
 2. register it in `node-executors.ts` — the `satisfies` contract makes a missing
    executor a compile error for action nodes,
