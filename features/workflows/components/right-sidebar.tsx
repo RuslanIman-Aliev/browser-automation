@@ -23,9 +23,11 @@ import { Label } from "@/components/ui/label"
 import { ResizablePanel } from "@/components/ui/resizable"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { cn } from "@/lib/utils"
 
-import { deleteWorkflowAction, runWorkflowAction } from "@/features/workflows/actions"
+import {
+  deleteWorkflowAction,
+  runWorkflowAction,
+} from "@/features/workflows/actions"
 import {
   nodeRegistry,
   type NodeDefinition,
@@ -39,6 +41,7 @@ import {
   useUpstreamConnections,
   type UpstreamConnection,
 } from "../hooks/use-upstream-connections"
+import { NodeIcon } from "./node-icon"
 
 // This file builds up to the RightSidebar component exported at the bottom: a
 // header with workflow actions (delete, run), then two tabs — a Toolbar for
@@ -48,31 +51,6 @@ import {
 // ---------------------------------------------------------------------------
 // Shared pieces — used by both the Toolbar and the Editor.
 // ---------------------------------------------------------------------------
-
-// The accent-colored icon chip, mirroring the node on the canvas.
-function NodeIcon({
-  type,
-  className,
-  iconClassName,
-}: {
-  type: NodeType
-  className?: string
-  iconClassName?: string
-}) {
-  const def = nodeRegistry[type]
-  const Icon = def.icon
-  return (
-    <span
-      className={cn(
-        "flex size-6 shrink-0 items-center justify-center rounded-md",
-        def.accent,
-        className
-      )}
-    >
-      <Icon className={cn("size-3.5", iconClassName)} />
-    </span>
-  )
-}
 
 // A titled, scrollable panel. Each tab renders its content inside one.
 function Section({
@@ -407,24 +385,24 @@ function ActionsMenu({ workflowId }: { workflowId: string }) {
 }
 
 // Kicks off a run of the current workflow.
-function RunButton({workflowId}: {workflowId: string}) {
-  const {getNodes, getEdges} = useReactFlow<StepNodeType>()
+function RunButton({ workflowId }: { workflowId: string }) {
+  const { getNodes, getEdges } = useReactFlow<StepNodeType>()
   const [isPending, startTransition] = useTransition()
-   return (
+  return (
     <Button
       size="sm"
       variant="secondary"
       disabled={isPending}
       onClick={() => {
         startTransition(async () => {
-          const graph = {nodes: getNodes(), edges: getEdges()}
+          const graph = { nodes: getNodes(), edges: getEdges() }
           const problems = validateGraph(graph)
           if (problems.length > 0) {
             toast.error(problems.join(" "))
             return
           }
           startTransition(async () => {
-            await runWorkflowAction({workflowId, graph})
+            await runWorkflowAction({ workflowId, graph })
           })
         })
       }}
@@ -450,7 +428,7 @@ export function RightSidebar({ workflowId }: { workflowId: string }) {
   // TODO: auto-switch to the Editor tab when the selection changes.
 
   const [prevSelectedId, setPrevSelectedId] = useState(selected?.id)
-  if(selected?.id !== prevSelectedId) {
+  if (selected?.id !== prevSelectedId) {
     setPrevSelectedId(selected?.id)
     setTab("editor")
   }
@@ -465,7 +443,7 @@ export function RightSidebar({ workflowId }: { workflowId: string }) {
       <Tabs value={tab} onValueChange={setTab} className="size-full gap-0">
         <div className="flex items-center justify-between border-b border-border p-2">
           <ActionsMenu workflowId={workflowId} />
-          <RunButton workflowId={workflowId}/>
+          <RunButton workflowId={workflowId} />
         </div>
         <TabsList className="m-2 w-fit bg-background">
           <TabsTrigger
