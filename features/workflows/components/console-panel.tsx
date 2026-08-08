@@ -9,19 +9,20 @@ import {
 } from "@/components/ui/resizable"
 
 import { InspectorPanel } from "./inspector-panel"
-import { LogsPanel, type StepSelection } from "./logs-panel"
+import { LogsPanel, selectionKey, type ConsoleSelection } from "./logs-panel"
 
 /**
- * The console under the canvas. It owns the selected step — clicking a step
- * selects it, clicking the same one again clears it — so the detail view of
- * what that step produced can sit beside the list.
+ * The console under the canvas. It owns what's selected in the run list —
+ * either a step or a run's replay, never both — so the detail view of what
+ * that row holds can sit beside the list. Clicking the selected row again
+ * clears it.
  */
 export function ConsolePanel() {
-  const [selected, setSelected] = useState<StepSelection | null>(null)
+  const [selected, setSelected] = useState<ConsoleSelection | null>(null)
 
-  const toggleStep = (selection: StepSelection) =>
+  const toggle = (selection: ConsoleSelection) =>
     setSelected((current) =>
-      current?.runId === selection.runId && current.nodeId === selection.nodeId
+      current && selectionKey(current) === selectionKey(selection)
         ? null
         : selection
     )
@@ -31,7 +32,7 @@ export function ConsolePanel() {
       {/* Each panel is a flex row of its own so its content can stretch to the
           panel's full height, the way the plain flex split used to give it. */}
       <ResizablePanel id="logs" className="flex min-w-0" minSize="10rem">
-        <LogsPanel selected={selected} onSelectStep={toggleStep} />
+        <LogsPanel selected={selected} onSelect={toggle} />
       </ResizablePanel>
       {selected && (
         <>

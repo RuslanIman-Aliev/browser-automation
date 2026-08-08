@@ -9,13 +9,23 @@ import { liveblocks } from "@/lib/liveblocks"
 
 import { WorkflowGraph } from "@/lib/db/schema"
 import { createWorkflow, deleteWorkflow, saveWorkflowGraph } from "./data"
+import { PRO_PLAN } from "./lib/plan"
 import type { runWorkflowTask } from "./tasks/run-workflow"
 
 export async function createWorkflowAction(name: string) {
-  const { orgId } = await auth()
+  // `has` reads the plan off the session claims, so this costs no round trip.
+  // The sidebar hides the button for a non-pro org, but that is only a nudge —
+  // this is the check that actually holds, since the action is reachable
+  // directly. Order matters: without an active org `has` would fall through to
+  // whatever personal subscription the user happens to have.
+  const { orgId, has } = await auth()
 
   if (!orgId) {
     throw new Error("No active organization")
+  }
+
+  if (!has({ plan: PRO_PLAN })) {
+    throw new Error("Creating a workflow requires the pro plan")
   }
 
   const workflow = await createWorkflow(orgId, name)

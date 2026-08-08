@@ -1,3 +1,5 @@
+import { MonitorPlay } from "lucide-react"
+
 import { Spinner } from "@/components/ui/spinner"
 import { cn } from "@/lib/utils"
 
@@ -40,6 +42,30 @@ export function NodeIcon({
       ) : (
         <Icon className={iconClasses} />
       )}
+    </span>
+  )
+}
+
+/**
+ * The chip for a run's replay, matching NodeIcon's shape so it sits evenly
+ * among the console's step rows. Muted rather than accented on purpose: a
+ * replay belongs to a whole run, and shouldn't read as one more node.
+ */
+export function ReplayIcon({
+  className,
+  iconClassName,
+}: {
+  className?: string
+  iconClassName?: string
+}) {
+  return (
+    <span
+      className={cn(
+        "flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground",
+        className
+      )}
+    >
+      <MonitorPlay className={cn("size-3.5", iconClassName)} />
     </span>
   )
 }

@@ -21,6 +21,11 @@ export type WorkflowRun = {
   // A run can die without any one step recording why — a crash, a timeout, a
   // failure before the first executor — so the run carries its own error too.
   error?: string
+  // The Browserbase session this run drove, for a panel to replay. Absent
+  // until the run finishes, and absent afterwards on runs that never opened a
+  // session — a graph of nothing but a send-email node never touches a
+  // browser.
+  sessionId?: string
   steps: RunStep[]
 }
 
@@ -85,6 +90,10 @@ export function WorkflowRunsProvider({
             createdAt: run.createdAt,
             finishedAt: run.finishedAt,
             error: run.error?.message,
+            // Only ever from the output, never from metadata: Browserbase
+            // can't serve the recording until the session closes, so the id is
+            // deliberately withheld until the run has finished.
+            sessionId: run.output?.sessionId,
             steps: steps ?? [],
           }
         }),
