@@ -3,13 +3,31 @@ import { getWorkflow } from "../data"
 import toposort from "toposort"
 import { Stagehand } from "@browserbasehq/stagehand"
 import { nodeExecutors } from "../nodes/node-executors"
+import type { NodeType } from "../nodes/node-registry"
 import { interpolate, type NodeOutputs } from "../lib/interpolate"
 
+export type RunStepStatus = "pending" | "running" | "done" | "failed"
+
 // One node's live progress, published to the run's metadata under "steps" so
-// the canvas can subscribe and light up each node as the run moves through it.
+// the canvas can subscribe and light up each node as the run moves through it,
+// and the console can show what every step did.
 export type RunStep = {
   nodeId: string
-  status: "pending" | "running" | "done" | "failed"
+  // The node's type and title as of when the run started. The graph is
+  // editable, so a finished run can't count on looking them up again — this is
+  // what the console renders its icon and title from.
+  nodeType: NodeType
+  title: string
+  status: RunStepStatus
+  // Epoch ms the executor was entered, so a step still in flight can be timed
+  // against the clock; durationMs lands when it settles, done or failed.
+  startedAt?: number
+  durationMs?: number
+  // Whatever the executor resolved with — the same value later nodes read
+  // through their {{ nodeId.path }} placeholders.
+  output?: unknown
+  // The thrown error's message, on the one step that failed.
+  error?: string
 }
 
 export const runWorkflowTask = task({
@@ -50,15 +68,24 @@ export const runWorkflowTask = task({
       return stagehand
     }
 
-    // Only nodes with an executor actually do anything — a start node, say, has
-    // nothing to run — so those are the steps the canvas tracks.
-    const runnable = order.filter((id) => nodeExecutors[byId.get(id)!.data.type])
+    // Every connected node is a step, including ones with nothing to run like
+    // the start trigger, so the canvas and the console account for the whole
+    // graph rather than quietly leaving nodes out.
+    const steps: RunStep[] = order.map((nodeId) => {
+      const { type, title } = byId.get(nodeId)!.data
+      return { nodeId, nodeType: type, title, status: "pending" }
+    })
 
-    const steps: RunStep[] = runnable.map((nodeId) => ({
-      nodeId,
-      status: "pending",
-    }))
-    metadata.set("steps", steps)
+    // metadata only takes plain JSON. Every value in a step is JSON, but the
+    // optional fields and the `unknown` output don't line up with that type, so
+    // the cast lives here rather than at each of the five call sites.
+    const publishSteps = () =>
+      metadata.set(
+        "steps",
+        steps as unknown as Parameters<typeof metadata.set>[1]
+      )
+
+    publishSteps()
 
     // Each node's result, keyed by its id, so later nodes can reference it
     // through {{ nodeId.path }} placeholders in their field values. The
@@ -69,7 +96,17 @@ export const runWorkflowTask = task({
       const node = byId.get(step.nodeId)!
       logger.log(`Running node ${step.nodeId} of kind ${node?.data.kind}`)
 
-      const executor = nodeExecutors[node.data.type]!
+      const executor = nodeExecutors[node.data.type]
+
+      // A trigger has no executor: no work to do and no output. It settles as
+      // done the moment the run reaches it, rather than sitting at "pending"
+      // for the life of the run and reading as skipped. No duration either —
+      // nothing ran, so there's nothing to have taken time.
+      if (!executor) {
+        step.status = "done"
+        publishSteps()
+        continue
+      }
 
       const values = Object.fromEntries(
         Object.entries(node.data.values).map(([key, value]) => [
@@ -78,18 +115,24 @@ export const runWorkflowTask = task({
         ])
       )
 
+      const startedAt = Date.now()
       step.status = "running"
-      metadata.set("steps", steps)
+      step.startedAt = startedAt
+      publishSteps()
       // Metadata flushes in the background, so without forcing it here the
       // "running" state would be overwritten by "done" before it was ever
       // pushed — the canvas would never show the node as in-flight.
       await metadata.flush()
 
       try {
-        outputs[step.nodeId] = await executor({ values, getStagehand })
+        const output = await executor({ values, getStagehand })
+        outputs[step.nodeId] = output
+        step.output = output
       } catch (error) {
         step.status = "failed"
-        metadata.set("steps", steps)
+        step.durationMs = Date.now() - startedAt
+        step.error = error instanceof Error ? error.message : String(error)
+        publishSteps()
         // A thrown run returns no output, so this flush is the only way the
         // failed state ever reaches the canvas.
         await metadata.flush()
@@ -97,7 +140,8 @@ export const runWorkflowTask = task({
       }
 
       step.status = "done"
-      metadata.set("steps", steps)
+      step.durationMs = Date.now() - startedAt
+      publishSteps()
     }
 
     // Returned as well as published, so a successful run's finished state is
