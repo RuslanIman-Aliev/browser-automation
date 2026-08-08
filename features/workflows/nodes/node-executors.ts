@@ -4,6 +4,7 @@ import { actOnPage } from "./node-act"
 import { extractFromPage } from "./node-extract"
 import { observePage } from "./node-observe"
 import { runAgent } from "./node-agent"
+import { sendEmail } from "./node-send-email"
 import { NodeType, ActionNodeType } from "./node-registry"
 
 export type NodeContext = {
@@ -35,5 +36,13 @@ export const nodeExecutors: Partial<Record<NodeType, NodeExecutor>> = {
     runAgent({
       stagehand: await getStagehand(),
       instruction: values.instruction,
+    }),
+  // No getStagehand call — sending mail needs no browser, and the getter is
+  // lazy, so a run of only this node never opens a Browserbase session.
+  "send-email": async ({ values }) =>
+    sendEmail({
+      to: values.to,
+      subject: values.subject,
+      body: values.body,
     }),
 } satisfies Record<ActionNodeType, NodeExecutor>
